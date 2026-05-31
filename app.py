@@ -39,11 +39,11 @@ if st.button("Analyze"):
     col1, col2 = st.columns(2)
     with col1:
         st.metric(
-            "Rainfall Forecast",
+            "🌧️ Rainfall Forecast",
             f"{rain_today} mm"
         )
         st.metric(
-            "Temperature",
+            "🌡️ Temperature",
             f"{current['temperature']} °C"
         )
     with col2:
@@ -52,7 +52,7 @@ if st.button("Analyze"):
             f"{elevation} m"
         )
         st.metric(
-            "Wind Speed",
+            "🍃 Wind Speed",
             f"{current['windspeed']} km/h"
         )
     if rain_today > 100 and elevation < 100:
