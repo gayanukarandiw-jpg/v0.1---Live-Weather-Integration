@@ -4,12 +4,14 @@ import requests
 from PIL import Image
 import folium
 from streamlit_folium import st_folium
+import plotly.express as px
 
 icon = Image.open("icons/wp_icon.png")
 st.set_page_config(page_title="Flood Risk Predictor", page_icon=icon, layout="wide")
 st.title("🌧️ Sri Lankan Flood Risk Predictor 🌧️")
 df= pd.read_csv("data/districts.csv")
 tab1, tab2 = st.tabs(["📊 District Analysis", "🌍 Island-Wide Overview"])
+st.caption("Data Source: Open-Meteo API | Built with Streamlit, Folium, and Plotly")
 @st.cache_data(ttl=1800)  # Cache for 30 minutes
 def get_live_weather(lat, long):   
     url = (
@@ -17,7 +19,7 @@ def get_live_weather(lat, long):
         f"?latitude={lat}"
         f"&longitude={long}"
         f"&current_weather=true"
-        f"&daily=precipitation_sum"
+        f"&daily=precipitation_sum,temperature_2m_max"
     )
     try:       
         response = requests.get(url, timeout=10)
@@ -46,6 +48,7 @@ with tab1:
             current = weather["current_weather"]
             rain_today = weather["daily"]["precipitation_sum"][0]
             date_today = weather["daily"]["time"][0]
+            forecast_df = pd.DataFrame({"Date": weather["daily"]["time"], "Rainfall": weather["daily"]["precipitation_sum"]})
             col1, col2 = st.columns(2)
             with col1:
                 st.metric("🌧️ Rainfall Forecast", f"{rain_today} mm")
@@ -63,6 +66,8 @@ with tab1:
             else:
                 risk = "LOW"
                 st.success("🟢 LOW FLOOD RISK")
+            
+            fig = px.bar(forecast_df, x="Date", y="Rainfall", title=f"Rainfall Forecast for {selected_district}")
             m = folium.Map(location=[lat, long], zoom_start=8)
             folium.CircleMarker(
                 location=[lat, long],
@@ -72,8 +77,17 @@ with tab1:
                 fill=True,
                 fill_color='red' if risk=='HIGH' else 'yellow' if risk=='MEDIUM' else 'green'
                 ).add_to(m)
-            st_folium(m, width=700)
+            col1, col2 = st.columns(2)
+            fig = px.bar(forecast_df, x="Date", y="Rainfall", title=f"Rainfall Forecast for {selected_district}")
+            with col1:
+                st_folium(m, width=700)
+            with col2:
+                st.subheader("📈 7-Day Rainfall Forecast")
+                st.plotly_chart(fig, use_container_width=True, key=f"forecast_chart_{selected_district}")
+                fig.update_layout(height=500)
             st.caption(f"Forecast Date: {date_today}")
+            st.markdown("---")
+
 with tab2:   
     st.subheader("🌍 Sri Lanka Flood Risk Overview")
     m = folium.Map(location=[7.8731, 80.7718], zoom_start=7)
@@ -119,7 +133,7 @@ with tab2:
             color=color,
             fill=True,
             fill_color=color,
-            tooltip=district # Hover show names
+            tooltip=district # Hover to show the names
         ).add_to(m)
 
     # Display counters
