@@ -5,10 +5,20 @@ from PIL import Image
 import folium
 from streamlit_folium import st_folium
 import plotly.express as px
+from streamlit_lottie import st_lottie
+import time
+import json
 
 icon = Image.open("icons/wp_icon.png")
 st.set_page_config(page_title="Flood Risk Predictor", page_icon=icon, layout="wide")
-st.title("🌧️ Sri Lankan Flood Risk Predictor 🌧️")
+with open("assets/Rainy.json", "r") as anime:
+    rain_anime = json.load(anime)
+col1, col2 = st.columns([2, 43])
+with col1:
+    st.write("")
+    st_lottie(rain_anime, height=50, width=50, key="rain_icon")
+with col2:
+    st.markdown("## Sri Lankan Flood Risk Predictor")
 df= pd.read_csv("data/districts.csv")
 tab1, tab2 = st.tabs(["📊 District Analysis", "🌍 Island-Wide Overview"])
 st.caption("Data Source: Open-Meteo API | Built with Streamlit, Folium, and Plotly")
@@ -28,6 +38,7 @@ def get_live_weather(lat, long):
     except requests.exceptions.RequestException as e:
         st.error(f"Weather API Error: {e}")
         return None
+    
 with tab1:
     st.subheader("🗺️ Select Your District")
     selected_district = st.selectbox("Districts: ", df["District"], index=None, placeholder="Choose a district")
@@ -40,7 +51,7 @@ with tab1:
         lat = district_info["Latitude"]
         long = district_info["Longitude"]
         elevation = district_info["Elevation"]
-        weather = get_live_weather(lat, long) 
+        weather = get_live_weather(lat, long)
         if selected_district is None:
             st.info("Please select a district.")
         else:
@@ -94,49 +105,50 @@ with tab2:
     high_risk = 0
     medium_risk = 0
     low_risk = 0
-    for index, row in df.iterrows():
-        district = row["District"]
-        lat = row["Latitude"]
-        lon = row["Longitude"]
-        elevation = row["Elevation"]
-        weather = get_live_weather(lat, lon)
-        if weather is None:
-            continue
-        rain_today = weather["daily"]["precipitation_sum"][0]
+    with st.spinner("Fetching live weather for all districts..."):
+        for index, row in df.iterrows():
+            district = row["District"]
+            lat = row["Latitude"]
+            lon = row["Longitude"]
+            elevation = row["Elevation"]
+            weather = get_live_weather(lat, lon)
+            if weather is None:
+                continue
+            rain_today = weather["daily"]["precipitation_sum"][0]
+            
+            # Risk calculation
+            if rain_today > 100 and elevation < 100:
+                risk = "HIGH"
+                color = "red"
+                high_risk += 1
+            elif rain_today > 50:
+                risk = "MEDIUM"
+                color = "yellow"
+                medium_risk += 1
+            else:
+                risk = "LOW"
+                color = "green"
+                low_risk += 1
 
-        # Risk calculation
-        if rain_today > 100 and elevation < 100:
-            risk = "HIGH"
-            color = "red"
-            high_risk += 1
-        elif rain_today > 50:
-            risk = "MEDIUM"
-            color = "yellow"
-            medium_risk += 1
-        else:
-            risk = "LOW"
-            color = "green"
-            low_risk += 1
+            radius = 15 
+            popup = f"{district}: {risk} Risk"
+            popup = (
+                    f"{district}<br>"
+                    f"Rainfall: {rain_today} mm<br>"
+                    f"Elevation: {elevation} m<br>"
+                    f"Risk: {risk}"
+                    )
+            folium.CircleMarker(
+                location=[lat, lon],
+                radius=radius,
+                popup=popup,
+                color=color,
+                fill=True,
+                fill_color=color,
+                tooltip=district # Hover to show the names
+            ).add_to(m)
 
-        radius = 15 
-        popup = f"{district}: {risk} Risk"
-        popup = (
-                f"{district}<br>"
-                f"Rainfall: {rain_today} mm<br>"
-                f"Elevation: {elevation} m<br>"
-                f"Risk: {risk}"
-                )
-        folium.CircleMarker(
-            location=[lat, lon],
-            radius=radius,
-            popup=popup,
-            color=color,
-            fill=True,
-            fill_color=color,
-            tooltip=district # Hover to show the names
-        ).add_to(m)
+        # Display counters
+        st.markdown(f"🔴 High Risk: {high_risk} | 🟡 Medium Risk: {medium_risk} | 🟢 Low Risk: {low_risk}")
 
-    # Display counters
-    st.markdown(f"🔴 High Risk: {high_risk} | 🟡 Medium Risk: {medium_risk} | 🟢 Low Risk: {low_risk}")
-
-    st_folium(m, width=700)
+        st_folium(m, width=700)
